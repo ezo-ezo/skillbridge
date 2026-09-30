@@ -1,0 +1,84 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-navy-950: #060a1f;
+  --color-navy-900: #0a1030;
+  --color-navy-800: #111a45;
+  --color-navy-700: #1a2560;
+  --color-navy-600: #26337f;
+
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dce8ff;
+  --color-brand-200: #bdd3ff;
+  --color-brand-400: #6b9bff;
+  --color-brand-500: #4479f5;
+  --color-brand-600: #2f5fe0;
+  --color-brand-700: #2549b8;
+
+  --color-violet-brand: #7c5cf0;
+
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px -4px rgb(15 23 42 / 0.08);
+  --shadow-lift: 0 2px 4px rgb(15 23 42 / 0.05), 0 16px 40px -12px rgb(47 95 224 / 0.25);
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-sans);
+  background: #f5f7fb;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Brand gradient helpers */
+.bg-brand-gradient { background: linear-gradient(135deg, #3b82f6 0%, #7c5cf0 100%); }
+.text-brand-gradient {
+  background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.glass {
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.12);
+  backdrop-filter: blur(14px);
+}
+.glass-light {
+  background: rgb(255 255 255 / 0.75);
+  border: 1px solid rgb(255 255 255 / 0.9);
+  backdrop-filter: blur(12px);
+}
+.grid-bg {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.04) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+/* Form controls */
+.field {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid #dbe2ee;
+  background: #fff;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.875rem;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field::placeholder { color: #94a3b8; }
+.field:focus { border-color: #4479f5; box-shadow: 0 0 0 3px rgb(68 121 245 / 0.18); }
+.field:disabled { background: #f1f5f9; color: #64748b; }
+
+/* Let grid/flex children shrink below their content width so long text can't force horizontal scroll on phones. */
+main .grid > *, main .flex > * { min-width: 0; }
+
+/* Scrollbars */
+* { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
