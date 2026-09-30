@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: skillbridge
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d skillbridge"]
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/skillbridge
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      CLIENT_URL: http://localhost:4000
+      PORT: 4000
+    ports:
+      - "4000:4000"
+    volumes:
+      - uploads:/app/server/uploads
+
+volumes:
+  pgdata:
+  uploads:

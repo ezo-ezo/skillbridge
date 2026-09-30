@@ -1,0 +1,17 @@
+{
+  "name": "skillbridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SkillBridge: verified student skill portfolios and opportunity matching",
+  "scripts": {
+    "setup": "npm --prefix server install && npm --prefix client install && npm --prefix server exec prisma generate",
+    "db": "npm --prefix server run db:dev",
+    "db:push": "npm --prefix server run db:push",
+    "seed": "npm --prefix server run db:seed",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start",
+    "test": "npm --prefix server test"
+  }
+}
