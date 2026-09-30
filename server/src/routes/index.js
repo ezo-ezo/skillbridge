@@ -34,6 +34,11 @@ router.get('/health', (_req, res) => res.json({ status: 'ok', time: new Date().t
 router.post('/auth/register', authLimiter, validate(s.registerSchema), auth.register);
 router.post('/auth/login', authLimiter, validate(s.loginSchema), auth.login);
 router.get('/auth/me', authenticate, auth.me);
+router.put('/auth/me', authenticate, validate(s.profileNameSchema), auth.updateMe);
+router.put('/auth/password', authenticate, authLimiter, validate(s.passwordChangeSchema), auth.changePassword);
+router.post('/users/me/avatar', authenticate, misc.upload.single('file'), misc.setAvatar);
+
+router.get('/stats/public', misc.publicStats);
 
 // Public portfolio (no auth)
 router.get('/profiles/:username', students.publicProfile);

@@ -4,7 +4,7 @@ const optionalUrl = z
   .string()
   .trim()
   .max(500)
-  .refine((v) => v === '' || /^https?:\/\/.+/i.test(v), 'Must be a valid http(s) URL')
+  .refine((v) => v === '' || /^https?:\/\/.+/i.test(v) || /^\/uploads\/[\w.-]+$/.test(v), 'Must be a valid http(s) URL')
   .optional()
   .nullable()
   .transform((v) => (v ? v : null));
@@ -14,7 +14,8 @@ const optionalText = (max = 2000) =>
 
 const dateLike = z.coerce.date();
 const optionalDate = z
-  .union([z.string().trim().length(0), z.null(), z.undefined(), z.coerce.date()])
+  .union([z.string().trim().length(0), z.null(), z.coerce.date()])
+  .optional()
   .transform((v) => (v ? new Date(v) : null));
 
 const password = z.string().min(8, 'Password must be at least 8 characters').max(100);
@@ -51,6 +52,9 @@ const loginSchema = z.object({
   password: z.string().min(1),
   role: z.enum(['STUDENT', 'INSTITUTION', 'EMPLOYER']),
 });
+
+const profileNameSchema = z.object({ name: z.string().trim().min(2).max(100) });
+const passwordChangeSchema = z.object({ currentPassword: z.string().min(1), newPassword: password });
 
 const studentUpdateSchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
@@ -140,6 +144,8 @@ const rejectSchema = z.object({ reason: z.string().trim().min(3, 'Give a short r
 module.exports = {
   registerSchema,
   loginSchema,
+  profileNameSchema,
+  passwordChangeSchema,
   studentUpdateSchema,
   projectSchema,
   credentialSchema,

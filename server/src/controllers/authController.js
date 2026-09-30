@@ -119,4 +119,20 @@ const me = asyncHandler(async (req, res) => {
   res.json({ user: await toClientUser(req.user) });
 });
 
-module.exports = { register, login, me, toClientUser };
+const updateMe = asyncHandler(async (req, res) => {
+  const user = await prisma.user.update({
+    where: { id: req.user.id },
+    data: { name: req.body.name },
+    include: { student: true, institution: true, employer: true },
+  });
+  res.json({ user: await toClientUser(user) });
+});
+
+const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!(await bcrypt.compare(currentPassword, req.user.passwordHash))) throw new HttpError(400, 'Current password is incorrect');
+  await prisma.user.update({ where: { id: req.user.id }, data: { passwordHash: await bcrypt.hash(newPassword, 10) } });
+  res.json({ ok: true });
+});
+
+module.exports = { register, login, me, updateMe, changePassword, toClientUser };

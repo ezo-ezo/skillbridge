@@ -211,6 +211,48 @@ test('application status updates are employer-only and notify the student', asyn
   assert.equal(ok.status, 200);
 });
 
+test('public stats are computed from the database and need no login', async () => {
+  const r = await call('GET', '/stats/public');
+  assert.equal(r.status, 200);
+  assert.ok(r.body.students >= 9 && r.body.verifiedCredentials >= 1 && r.body.opportunities >= 10);
+});
+
+test('deleting a verified credential demotes the skills it backed', async () => {
+  const student = await login('vikram.patel@skillbridge.demo', 'STUDENT');
+  const institution = await login('institution2@skillbridge.demo', 'INSTITUTION');
+  const created = await call('POST', '/credentials', {
+    token: student, body: { type: 'CERTIFICATION', title: 'Temp Rust Cert', issuer: 'Test', issuedOn: '2026-03-01', skills: ['Rust'] },
+  });
+  const id = created.body.credential.id;
+  await call('POST', `/verification/${id}/approve`, { token: institution });
+  const before = await call('GET', '/students/me', { token: student });
+  assert.equal(before.body.student.skills.find((s) => s.skill.name === 'Rust').status, 'VERIFIED');
+  assert.equal((await call('DELETE', `/credentials/${id}`, { token: student })).status, 200);
+  const after = await call('GET', '/students/me', { token: student });
+  assert.equal(after.body.student.skills.find((s) => s.skill.name === 'Rust').status, 'PENDING');
+  // cleanup the temporary skill
+  const rust = after.body.student.skills.find((s) => s.skill.name === 'Rust');
+  await call('DELETE', `/student-skills/${rust.id}`, { token: student });
+});
+
+test('uploaded file paths are accepted as URLs, arbitrary strings are not', async () => {
+  const token = await login('arjun.verma@skillbridge.demo', 'STUDENT');
+  const base = { title: 'Upload path project', description: 'A project used to test URL validation rules.', technologies: ['Python'] };
+  const ok = await call('POST', '/projects', { token, body: { ...base, imageUrl: '/uploads/abc-123.png' } });
+  assert.equal(ok.status, 201);
+  const bad = await call('POST', '/projects', { token, body: { ...base, imageUrl: 'javascript:alert(1)' } });
+  assert.equal(bad.status, 400);
+  await call('DELETE', `/projects/${ok.body.project.id}`, { token });
+});
+
+test('settings: change name and password (wrong current password rejected)', async () => {
+  const token = await login('arjun.verma@skillbridge.demo', 'STUDENT');
+  assert.equal((await call('PUT', '/auth/password', { token, body: { currentPassword: 'wrong-pass', newPassword: 'Another@1234' } })).status, 400);
+  assert.equal((await call('PUT', '/auth/password', { token, body: { currentPassword: PASSWORD, newPassword: 'short' } })).status, 400);
+  const renamed = await call('PUT', '/auth/me', { token, body: { name: 'Arjun Verma' } });
+  assert.equal(renamed.body.user.name, 'Arjun Verma');
+});
+
 test('analytics return real numbers for each role', async () => {
   const s = await call('GET', '/analytics/student', { token: await login('student@skillbridge.demo', 'STUDENT') });
   assert.ok(s.body.profileStrength > 0 && s.body.skills.verified > 0);

@@ -87,4 +87,18 @@ const institutionStudents = asyncHandler(async (req, res) => {
   res.json({ students: rows });
 });
 
-module.exports = { upload, uploadFile, setAvatar, setResume, listNotifications, markRead, institutionStudents };
+// Public landing-page numbers, straight from the database.
+const publicStats = asyncHandler(async (_req, res) => {
+  const [students, verifiedCredentials, opportunities, institutions, employers, applications, verifiedSkills] = await Promise.all([
+    prisma.studentProfile.count(),
+    prisma.credential.count({ where: { status: 'VERIFIED' } }),
+    prisma.opportunity.count({ where: { isActive: true } }),
+    prisma.institution.count(),
+    prisma.employer.count(),
+    prisma.application.count(),
+    prisma.studentSkill.count({ where: { status: 'VERIFIED' } }),
+  ]);
+  res.json({ students, verifiedCredentials, opportunities, institutions, employers, applications, verifiedSkills });
+});
+
+module.exports = { publicStats, upload, uploadFile, setAvatar, setResume, listNotifications, markRead, institutionStudents };

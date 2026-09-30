@@ -80,7 +80,11 @@ const updateCredential = asyncHandler(async (req, res) => {
 
 const deleteCredential = asyncHandler(async (req, res) => {
   const c = await ownCredential(req);
-  await prisma.credential.delete({ where: { id: c.id } });
+  // Skills backed only by this credential fall back to self-reported.
+  await prisma.$transaction([
+    prisma.studentSkill.updateMany({ where: { credentialId: c.id }, data: { status: 'PENDING', verifiedAt: null } }),
+    prisma.credential.delete({ where: { id: c.id } }),
+  ]);
   res.json({ ok: true });
 });
 
