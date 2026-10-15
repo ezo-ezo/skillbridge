@@ -12,8 +12,9 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
-// Behind a load balancer / reverse proxy (Elastic Beanstalk, nginx): use the real client IP for rate limiting.
-if (config.isProd) app.set('trust proxy', 1);
+// Behind reverse proxies, use the real client IP for rate limiting. Elastic Beanstalk's nginx is one hop;
+// put CloudFront in front and set TRUST_PROXY_HOPS=2.
+if (config.isProd) app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 1);
 
 app.use(
   helmet({
