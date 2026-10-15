@@ -38,7 +38,7 @@ In production the API also serves the built client, so the whole app is **one de
 **On AWS:**
 
 ```
-Browser ──HTTP──▶ Elastic Beanstalk (Node 22, nginx → Express, serves API + built client)
+Browser ──HTTPS──▶ CloudFront ──HTTP──▶ Elastic Beanstalk (Node 22, nginx → Express, serves API + built client)
                       ├─ Prisma ──▶ RDS PostgreSQL   (private subnet access: only the app's security group on :5432)
                       ├─ uploads ─▶ S3 bucket        (private; files served via 5-minute signed URLs)
                       └─ secrets ─▶ SSM Parameter Store (DATABASE_URL, JWT_SECRET as SecureString)
@@ -152,6 +152,7 @@ This is how the demo is deployed. Region `ap-south-1`; everything is tagged `Pro
 | Database | RDS PostgreSQL 16, `db.t4g.micro` | Not publicly accessible; its security group admits only the app's security group on 5432 |
 | Uploads | S3 bucket | Private, public access blocked, encrypted; `GET /uploads/:file` redirects to a short-lived signed URL |
 | Secrets | SSM Parameter Store (SecureString) | `/skillbridge/DATABASE_URL`, `/skillbridge/JWT_SECRET`; injected as environment secrets |
+| HTTPS | CloudFront (default `*.cloudfront.net` certificate) | Caching disabled for the API and pages, `/assets/*` cached; HTTP redirects to HTTPS; origin hop to Beanstalk is HTTP. Set `TRUST_PROXY_HOPS=2` so rate limiting sees the real client IP |
 | Access | IAM instance role | Read/write on the one bucket, read on `/skillbridge/*` parameters |
 
 **Deploy a new version**
@@ -171,9 +172,9 @@ Build the zip with forward-slash entry names (for example with .NET's `ZipArchiv
 aws elasticbeanstalk terminate-environment --environment-name skillbridge-prod
 aws rds delete-db-instance --db-instance-identifier skillbridge-db --skip-final-snapshot
 ```
-Then delete the S3 bucket, the `/skillbridge/*` parameters, the security groups and the IAM role/instance profile if you no longer need them.
+Disable and then delete the CloudFront distribution (console: CloudFront, select it, Disable, then Delete once disabled). Then delete the S3 bucket, the `/skillbridge/*` parameters, the security groups and the IAM role/instance profile if you no longer need them.
 
-**Current limits:** the demo is served over plain HTTP (set `ALLOW_HTTP=true`); HTTPS needs a certificate, for example CloudFront or an Application Load Balancer with an ACM certificate. The demo accounts use a published password, so seed them only on demo deployments.
+**Current limits:** the address is a `*.cloudfront.net` one (a custom domain would need an ACM certificate and a CNAME). The origin hop from CloudFront to Beanstalk is plain HTTP and the instance's port 80 is still open to the internet; for a stricter setup, restrict it to CloudFront's origin-facing prefix list. If you ever serve the app over plain HTTP with no CloudFront, set `ALLOW_HTTP=true`. The demo accounts use a published password, so seed them only on demo deployments.
 
 ### Other hosts
 
@@ -191,4 +192,4 @@ npm start                         # Express serves API + client on $PORT
 
 ## Future scope
 
-Email verification and password reset, institution-side bulk import, credential verification via issuer APIs/QR, HTTPS with a custom domain, pagination for large result sets, and recommendation emails.
+Email verification and password reset, institution-side bulk import, credential verification via issuer APIs/QR, a custom domain, pagination for large result sets, and recommendation emails.
