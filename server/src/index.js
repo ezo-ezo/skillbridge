@@ -12,12 +12,22 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
+// Behind a load balancer / reverse proxy (Elastic Beanstalk, nginx): use the real client IP for rate limiting.
+if (config.isProd) app.set('trust proxy', 1);
+
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     contentSecurityPolicy: {
-      directives: { ...helmet.contentSecurityPolicy.getDefaultDirectives(), 'img-src': ["'self'", 'data:', 'https:'] },
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'img-src': ["'self'", 'data:', 'https:'],
+        // Only set ALLOW_HTTP=true when serving over plain HTTP (e.g. a demo without a certificate);
+        // otherwise browsers would rewrite asset requests to https:// and the page would not load.
+        'upgrade-insecure-requests': process.env.ALLOW_HTTP === 'true' ? null : [],
+      },
     },
+    hsts: process.env.ALLOW_HTTP === 'true' ? false : undefined,
   }),
 );
 app.use(cors({ origin: config.clientUrl.split(','), credentials: true }));
