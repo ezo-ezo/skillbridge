@@ -7,6 +7,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const config = require('./utils/config');
 const routes = require('./routes');
+const misc = require('./controllers/miscController');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -24,7 +25,7 @@ app.use(express.json({ limit: '1mb' }));
 if (!config.isProd) app.use(morgan('dev'));
 
 app.use('/api', rateLimit({ windowMs: 60 * 1000, limit: 300, standardHeaders: true, legacyHeaders: false }));
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+app.get('/uploads/:filename', misc.serveUpload);
 app.use('/api', routes);
 
 // Single-service deployment: if the client has been built, serve it (with SPA fallback) from this process.

@@ -10,6 +10,11 @@ const config = {
     baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
     model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
   },
+  s3: {
+    bucket: process.env.S3_BUCKET || '',
+    region: process.env.AWS_REGION || 'ap-south-1',
+    urlTtlSeconds: Number(process.env.S3_URL_TTL_SECONDS) || 300,
+  },
   isProd: process.env.NODE_ENV === 'production',
 };
 

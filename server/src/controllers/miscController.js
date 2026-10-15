@@ -1,20 +1,36 @@
-const path = require('path');
 const multer = require('multer');
 const crypto = require('crypto');
 const prisma = require('../utils/prisma');
 const { HttpError, asyncHandler } = require('../utils/httpError');
 const { profileCompletion } = require('../services/completion');
+const storage = require('../services/storage');
 
-// ---- File uploads (local disk; swap the storage engine for S3/Cloudinary in production) ----
+// ---- File uploads (S3 when S3_BUCKET is set, local disk otherwise; see services/storage.js) ----
 const ALLOWED = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'application/pdf': '.pdf' };
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: path.join(__dirname, '..', '..', 'uploads'),
-    filename: (_req, file, cb) => cb(null, `${crypto.randomUUID()}${ALLOWED[file.mimetype]}`),
-  }),
+const parser = multer({
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) =>
     ALLOWED[file.mimetype] ? cb(null, true) : cb(new HttpError(400, 'Only PNG, JPG, WebP or PDF files up to 5MB are allowed')),
+});
+
+// Multer parses into memory (5MB cap); the file is then written to the configured store.
+const persist = asyncHandler(async (req, _res, next) => {
+  if (req.file) {
+    req.file.filename = `${crypto.randomUUID()}${ALLOWED[req.file.mimetype]}`;
+    await storage.saveFile(req.file.filename, req.file);
+  }
+  next();
+});
+const upload = { single: (field) => [parser.single(field), persist] };
+
+// GET /uploads/:filename — signed redirect to S3, or the local file in development.
+const serveUpload = asyncHandler(async (req, res) => {
+  const { filename } = req.params;
+  if (!/^[\w-]+\.(png|jpg|webp|pdf)$/.test(filename)) throw new HttpError(404, 'Not found');
+  const url = await storage.signedUrl(filename);
+  if (url) return res.redirect(302, url);
+  res.sendFile(filename, { root: storage.localDir }, (err) => err && res.status(404).end());
 });
 
 const uploadFile = asyncHandler(async (req, res) => {
@@ -101,4 +117,4 @@ const publicStats = asyncHandler(async (_req, res) => {
   res.json({ students, verifiedCredentials, opportunities, institutions, employers, applications, verifiedSkills });
 });
 
-module.exports = { publicStats, upload, uploadFile, setAvatar, setResume, listNotifications, markRead, institutionStudents };
+module.exports = { publicStats, upload, serveUpload, uploadFile, setAvatar, setResume, listNotifications, markRead, institutionStudents };
