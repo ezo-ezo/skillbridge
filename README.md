@@ -18,7 +18,7 @@ Highlights: JWT auth with role-based route and API protection, transactional ver
 
 ## Tech stack
 
-React 19 · Vite · Tailwind CSS 4 · React Router · Framer Motion · Recharts · Lucide — Node.js · Express 4 · Prisma 5 · PostgreSQL · JWT · bcrypt · zod · helmet · rate limiting.
+React 19 · Vite · Tailwind CSS 4 · React Router · Framer Motion · Recharts · Lucide — Node.js · Express 4 · Prisma 5 · PostgreSQL · JWT · bcrypt · zod · helmet · rate limiting — deployed on **AWS** (Elastic Beanstalk · RDS PostgreSQL · S3 · Systems Manager Parameter Store · IAM).
 
 ## Architecture
 
@@ -34,6 +34,17 @@ client/src/{pages,components,layouts,hooks,services,context,utils}
 ```
 
 In production the API also serves the built client, so the whole app is **one deployable service**.
+
+**On AWS:**
+
+```
+Browser ──HTTP──▶ Elastic Beanstalk (Node 22, nginx → Express, serves API + built client)
+                      ├─ Prisma ──▶ RDS PostgreSQL   (private subnet access: only the app's security group on :5432)
+                      ├─ uploads ─▶ S3 bucket        (private; files served via 5-minute signed URLs)
+                      └─ secrets ─▶ SSM Parameter Store (DATABASE_URL, JWT_SECRET as SecureString)
+```
+
+The instance runs under an IAM role limited to that one bucket and the `/skillbridge/*` parameters, so no AWS keys exist in the code or in `.env`.
 
 ## Matching engine
 
@@ -74,6 +85,9 @@ Already have PostgreSQL (or Neon/Supabase)? Point `DATABASE_URL` in `server/.env
 | `JWT_EXPIRES_IN` | Token lifetime (default `7d`) |
 | `PORT`, `CLIENT_URL` | API port and allowed CORS origin(s) |
 | `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` | Optional AI match explanations |
+| `S3_BUCKET`, `AWS_REGION`, `S3_URL_TTL_SECONDS` | Optional. When `S3_BUCKET` is set, uploads go to S3 (credentials from the AWS default chain: `aws configure` locally, the instance role on AWS). Unset = local disk. Signed-URL lifetime defaults to 300 s |
+| `ALLOW_HTTP` | Set to `true` only when serving over plain HTTP (no certificate). Disables helmet's `upgrade-insecure-requests` and HSTS, which would otherwise stop the page loading |
+| `RESEED_DEMO` | Set to `true` for **one** deploy to wipe and re-seed the demo data. Normal deploys only seed an empty database |
 
 ## Demo accounts
 
@@ -128,19 +142,53 @@ The suite creates and cleans up its own records but may leave demo applications;
 
 ## Deployment
 
-**One service (recommended).**
+### AWS (Elastic Beanstalk + RDS + S3)
+
+This is how the demo is deployed. Region `ap-south-1`; everything is tagged `Project=skillbridge`.
+
+| Piece | Service | Notes |
+|---|---|---|
+| App + client | Elastic Beanstalk, Node 22, single instance | `Procfile` runs `npm --prefix server start`; `.ebextensions/01_server.config` installs server deps, runs `prisma db push` and `scripts/seed-if-empty.js` on each deploy |
+| Database | RDS PostgreSQL 16, `db.t4g.micro` | Not publicly accessible; its security group admits only the app's security group on 5432 |
+| Uploads | S3 bucket | Private, public access blocked, encrypted; `GET /uploads/:file` redirects to a short-lived signed URL |
+| Secrets | SSM Parameter Store (SecureString) | `/skillbridge/DATABASE_URL`, `/skillbridge/JWT_SECRET`; injected as environment secrets |
+| Access | IAM instance role | Read/write on the one bucket, read on `/skillbridge/*` parameters |
+
+**Deploy a new version**
+```bash
+npm run build                                   # builds client/dist
+# zip: package.json, Procfile, .ebextensions/, client/dist/, server/ (without node_modules, uploads, .env)
+# upload the zip to the Elastic Beanstalk S3 bucket, then:
+aws elasticbeanstalk create-application-version --application-name skillbridge --version-label vN --source-bundle S3Bucket=<bucket>,S3Key=<key>
+aws elasticbeanstalk update-environment --environment-name skillbridge-prod --version-label vN
+```
+Build the zip with forward-slash entry names (for example with .NET's `ZipArchive` or `zip`); the Windows `tar -a` zip is rejected by Beanstalk as an invalid zip.
+
+**Reset the demo data:** deploy once with the environment property `RESEED_DEMO=true`, then remove the property. Redeploys without it never touch existing data.
+
+**Tear down** (stops all charges for this app):
+```bash
+aws elasticbeanstalk terminate-environment --environment-name skillbridge-prod
+aws rds delete-db-instance --db-instance-identifier skillbridge-db --skip-final-snapshot
+```
+Then delete the S3 bucket, the `/skillbridge/*` parameters, the security groups and the IAM role/instance profile if you no longer need them.
+
+**Current limits:** the demo is served over plain HTTP (set `ALLOW_HTTP=true`); HTTPS needs a certificate, for example CloudFront or an Application Load Balancer with an ACM certificate. The demo accounts use a published password, so seed them only on demo deployments.
+
+### Other hosts
+
+The app is one Node service plus PostgreSQL, so it also runs on Render, Railway or Fly.io:
 ```bash
 npm run build                     # builds client/dist
 # set DATABASE_URL, JWT_SECRET, NODE_ENV=production on the host
 npm --prefix server exec prisma db push
 npm start                         # Express serves API + client on $PORT
 ```
-Works on Render, Railway, Fly.io or an AWS EC2/Elastic Beanstalk instance with a managed PostgreSQL (RDS, Neon, Supabase). Run the seed once if you want demo data.
 
 **Docker.** `docker compose up --build` starts PostgreSQL + the app on http://localhost:4000; load demo data with `docker compose exec app node prisma/seed.js`. *(The Docker files were written but not run in the development environment.)*
 
-**File uploads** are stored on local disk under `server/uploads`. For horizontally scaled or ephemeral hosts, swap the multer storage engine in `miscController.js` for S3/Cloudinary/Supabase Storage.
+**File uploads** use S3 when `S3_BUCKET` is set and local disk (`server/uploads`) otherwise; see `server/src/services/storage.js`. Local disk is fine for development but not for hosts with ephemeral or multiple instances.
 
 ## Future scope
 
-Email verification and password reset, institution-side bulk import, credential verification via issuer APIs/QR, cloud object storage, pagination for large result sets, and recommendation emails.
+Email verification and password reset, institution-side bulk import, credential verification via issuer APIs/QR, HTTPS with a custom domain, pagination for large result sets, and recommendation emails.
